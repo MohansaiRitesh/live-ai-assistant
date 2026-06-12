@@ -1,149 +1,175 @@
-# Live AI Assistant with Conversation Memory
+﻿# Live AI Assistant
 
-This is a simple Flask-based API that exposes a live AI assistant powered by Google Gemini with per-session conversation memory.
+A Flask-powered AI assistant backend with Google Gemini, web search support, file uploads, and persistent conversation history via SQLite.
 
-## Features
+## What this project does
 
-- Flask REST API with JSON responses.
-- Endpoints for chat, search-style queries, and clearing memory.
-- In-memory conversation history per `session_id`.
-- Uses Google Gemini 2.5 Flash via `google-generativeai`.
-- CORS enabled for frontend integration.
-- Environment-based configuration for the Gemini API key (using `python-dotenv`).
+- Provides a JSON REST API for chat, search, file upload, and history management.
+- Stores conversation sessions in `database.db` using SQLite.
+- Supports processing of uploaded PDF, DOCX, TXT, and image files.
+- Optionally enriches answers with Google search results via SerpApi.
+- Includes a simple frontend in `index.html`.
 
 ## Project Structure
 
-- `app.py` – Main Flask application with all API endpoints.
-- `index.html` – Frontend page to interact with the assistant.
-- `requirements.txt` – Python dependencies.
+- `app.py` — Flask application and API endpoints.
+- `database.py` — SQLite session/message persistence.
+- `index.html` — Frontend chat UI.
+- `requirements.txt` — Python dependencies.
+- `uploads/` — Temporary upload folder for processing files.
 
-## Prerequisites
+## Requirements
 
-- Python 3.10+ recommended.
-- A Google Gemini API key stored in an environment variable `GEMINI_API_KEY`.
+- Python 3.10+
+- A Google Gemini API key stored in `GEMINI_API_KEY`
+- Optional: a SerpApi key stored in `SERPAPI_KEY` for live search results
 
 ## Setup
 
-1. Clone the repository and move into the project directory.
-2. (Optional but recommended) Create and activate a virtual environment:
-   ```bash
-   python -m venv venv
-   source venv/bin/activate   # Linux / macOS
-   # or
-   venv\Scriptsctivate      # Windows
-   ```
-3. Install dependencies:
-   ```bash
-   pip install -r requirements.txt
-   ```
-4. Create a `.env` file in the project root and add your Gemini API key:
-   ```env
-   GEMINI_API_KEY=your_api_key_here
-   ```
+1. Create and activate a virtual environment:
 
-## Running the App
+```bash
+python -m venv venv
+venv\Scripts\activate
+```
 
-Start the Flask server:
+2. Install dependencies:
+
+```bash
+pip install -r requirements.txt
+```
+
+3. Create a `.env` file in the project root:
+
+```env
+GEMINI_API_KEY=your_gemini_api_key
+SERPAPI_KEY=your_serpapi_api_key
+```
+
+4. Run the app:
 
 ```bash
 python app.py
 ```
 
-By default, it runs in debug mode on:
-
-- URL: `http://localhost:5000`
+The server starts on `http://localhost:5000` by default.
 
 ## API Endpoints
 
 ### `GET /`
 
-Health/status endpoint for the API that returns a JSON payload with status, model name, and available endpoints.
+Returns API metadata and available endpoints.
 
 ### `POST /chat`
 
-Chat with memory for a given `session_id`.
+Send a chat message and maintain session memory.
 
-**Request body:**
+Request body:
 
 ```json
 {
-  "message": "Your question here",
+  "message": "Hello",
   "session_id": "optional-session-id"
 }
 ```
 
-- If `session_id` is omitted, it defaults to `"default"`.
-- The server keeps conversation history in memory for each `session_id`.
-
-**Response body (simplified):**
+Response sample:
 
 ```json
 {
   "success": true,
-  "response": "Model reply here",
-  "model": "gemini-2.5-flash",
+  "response": "AI reply...",
   "memory_count": 4,
-  "session_id": "your-session-id"
+  "session_id": "optional-session-id",
+  "search_used": false
 }
 ```
 
 ### `POST /search`
 
-Search-style endpoint that uses the same model but with explicit date context, intended for queries that feel like “search”.
+Send a search-style query. If `SERPAPI_KEY` is configured, it will try to include web search results.
 
-**Request body:**
+Request body:
 
 ```json
 {
-  "message": "Your search-like query",
+  "message": "What is the latest on AI?",
   "session_id": "optional-session-id"
 }
 ```
 
-**Response body (simplified):**
+Response sample:
 
 ```json
 {
   "success": true,
-  "response": "Model reply here",
-  "model": "gemini-2.5-flash",
-  "memory_count": 3,
-  "session_id": "your-session-id",
-  "note": "Web search not available - using AI knowledge with date context"
+  "response": "AI reply...",
+  "memory_count": 5,
+  "session_id": "optional-session-id",
+  "search_used": true,
+  "sources": ["https://example.com"]
 }
 ```
+
+### `POST /upload`
+
+Upload a supported file and ask a question about it.
+
+Form fields:
+- `file` — the uploaded file
+- `message` — question or prompt
+- `session_id` — optional session identifier
+
+Supported file types:
+- `pdf`
+- `docx`
+- `txt`
+- `png`, `jpg`, `jpeg`, `gif`, `webp`
+
+Response sample:
+
+```json
+{
+  "success": true,
+  "response": "AI analysis...",
+  "file_name": "document.pdf",
+  "file_type": "PDF Document",
+  "memory_count": 3,
+  "session_id": "optional-session-id"
+}
+```
+
+### `GET /history`
+
+Returns all sessions with metadata and message counts.
+
+### `GET /history/<session_id>`
+
+Returns message history for a specific session.
+
+### `DELETE /history/<session_id>`
+
+Deletes a conversation session and its messages.
+
+### `GET /history/search?q=term`
+
+Searches stored conversation messages for `term`.
 
 ### `POST /clear`
 
-Clear conversation memory for a `session_id`.
+Clears a session by deleting it from the database.
 
-**Request body:**
-
-```json
-{
-  "session_id": "your-session-id"
-}
-```
-
-**Response body (simplified):**
+Request body:
 
 ```json
 {
-  "success": true,
-  "message": "Cleared X messages from memory"
+  "session_id": "optional-session-id"
 }
 ```
-
-If the `session_id` has no memory, it returns `"No memory to clear"`.
-
-## Frontend (index.html)
-
-`index.html` can be served from any static server or opened directly in the browser, as long as it points to the Flask backend (`http://localhost:5000` by default). It is intended as a simple UI to send chat/search requests and view responses.
 
 ## Notes
 
-- Conversation memory is stored in a Python dictionary in memory and resets when the server restarts.
-- For production, consider:
-  - Using a persistent store (Redis, database) for conversation history
-  - Disabling `debug=True`
-  - Securing your API key and backend endpoints
+- Conversation history is persisted in `database.db`.
+- Uploaded files are temporarily stored in `uploads/` and removed after processing.
+- For production use, disable Flask debug mode and secure your API keys.
+- If `SERPAPI_KEY` is not present, `/search` still works but without live web search results.
