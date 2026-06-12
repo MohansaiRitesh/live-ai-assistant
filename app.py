@@ -1,17 +1,4 @@
-# ============================================
-# APP.PY - Live AI Assistant (with Database)
-# ============================================
-# Changes from previous version:
-#   - Removed in-memory conversation_memory dict
-#   - All messages now saved to database.db
-#   - History loaded from database on each request
-#   - New /history endpoints for dashboard (Phase 3)
-# ============================================
-
-
-# ─────────────────────────────────────────────
-# SECTION 1: Imports
-# ─────────────────────────────────────────────
+# APP.PY - Live AI Assistant
 
 from flask import Flask, request, jsonify
 from flask_cors import CORS
@@ -22,31 +9,23 @@ from datetime import datetime
 import secrets
 from serpapi import GoogleSearch
 
-# File handling
 import PyPDF2
 from PIL import Image
 import docx
 import io
 
-# ★ NEW: Import all our database functions
-# 'from database import ...' means:
-#   go into database.py and bring these functions here
 from database import (
-    init_db,                # Initialize tables on startup
-    create_session,         # Create new conversation record
-    update_session_time,    # Update 'last active' time
-    save_message,           # Save one message to DB
-    get_session_messages,   # Load all messages for a session
-    get_all_sessions,       # Get all conversations (for dashboard)
-    delete_session,         # Delete a conversation
-    search_messages,        # Search through messages
-    get_message_count       # Count messages in a session
+    init_db,               
+    create_session,        
+    update_session_time,   
+    save_message,          
+    get_session_messages,  
+    get_all_sessions,      
+    delete_session,      
+    search_messages,     
+    get_message_count    
 )
 
-
-# ─────────────────────────────────────────────
-# SECTION 2: Load Environment Variables
-# ─────────────────────────────────────────────
 
 load_dotenv()
 
@@ -58,10 +37,7 @@ if not GEMINI_API_KEY:
     exit()
 
 
-# ─────────────────────────────────────────────
-# SECTION 3: Configure Gemini
-# ─────────────────────────────────────────────
-
+# Configure Gemini
 genai.configure(api_key=GEMINI_API_KEY)
 model        = genai.GenerativeModel('models/gemini-2.5-flash')
 vision_model = genai.GenerativeModel('models/gemini-2.5-flash')
@@ -69,13 +45,11 @@ vision_model = genai.GenerativeModel('models/gemini-2.5-flash')
 print("✅ Gemini configured!")
 
 
-# ─────────────────────────────────────────────
-# SECTION 4: Flask App Setup
-# ─────────────────────────────────────────────
-
+# Flask App Setup
 app = Flask(__name__)
 app.secret_key = secrets.token_hex(16)
 CORS(app, supports_credentials=True)
+
 
 # Upload folder setup
 UPLOAD_FOLDER = os.path.join(os.path.dirname(__file__), 'uploads')
@@ -85,20 +59,12 @@ ALLOWED_EXTENSIONS = {'pdf', 'png', 'jpg', 'jpeg', 'gif', 'webp', 'docx', 'txt'}
 app.config['MAX_CONTENT_LENGTH'] = 10 * 1024 * 1024
 
 
-# ─────────────────────────────────────────────
-# SECTION 5: Initialize Database on Startup
-# ─────────────────────────────────────────────
-
-# ★ NEW: This runs ONCE when server starts
-# Creates the tables if they don't exist yet
-# If tables already exist, it skips silently
+# Initialize Database on Startup
 init_db()
 
 
-# ─────────────────────────────────────────────
-# SECTION 6: Helper Functions (unchanged)
-# ─────────────────────────────────────────────
 
+# Helper Functions
 def allowed_file(filename):
     return '.' in filename and \
            filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
@@ -183,10 +149,8 @@ def search_web(query, num_results=5):
         return None, []
 
 
-# ─────────────────────────────────────────────
-# SECTION 7: Build Conversation Context
-# ─────────────────────────────────────────────
 
+# Build Conversation Context
 def build_context(session_id):
     """
     ★ NEW FUNCTION: Load conversation history from DATABASE
@@ -216,10 +180,8 @@ def build_context(session_id):
     return context
 
 
-# ─────────────────────────────────────────────
-# SECTION 8: Chat Endpoint
-# ─────────────────────────────────────────────
 
+# Chat Endpoint
 @app.route('/chat', methods=['POST'])
 def chat():
     """
@@ -242,14 +204,13 @@ def chat():
 
         print(f"💬 Chat [{session_id[:15]}...]: {user_msg[:50]}")
 
-        # ★ NEW: Create session if this is the first message
         # create_session() handles duplicates gracefully (try/except inside)
         create_session(session_id, user_msg)
 
-        # ★ NEW: Save user message to database
+        # Save user message to database
         save_message(session_id, 'user', user_msg)
 
-        # ★ NEW: Load full history from database
+        # Load full history from database
         context = build_context(session_id)
 
         # Build prompt with history
@@ -266,10 +227,10 @@ Respond naturally to the user's latest message."""
         response      = model.generate_content(prompt)
         ai_response   = response.text
 
-        # ★ NEW: Save AI response to database
+        # Save AI response to database
         save_message(session_id, 'assistant', ai_response)
 
-        # ★ NEW: Update session's last-active timestamp
+        # Update session's last-active timestamp
         update_session_time(session_id)
 
         msg_count = get_message_count(session_id)
@@ -288,10 +249,8 @@ Respond naturally to the user's latest message."""
         return jsonify({"success": False, "error": str(e)}), 500
 
 
-# ─────────────────────────────────────────────
-# SECTION 9: Search Endpoint
-# ─────────────────────────────────────────────
 
+# Search Endpoint
 @app.route('/search', methods=['POST'])
 def chat_with_search():
     """
@@ -356,10 +315,8 @@ Answer: {user_msg}"""
         return jsonify({"success": False, "error": str(e)}), 500
 
 
-# ─────────────────────────────────────────────
-# SECTION 10: File Upload Endpoint
-# ─────────────────────────────────────────────
 
+# File Upload Endpoint
 @app.route('/upload', methods=['POST'])
 def upload_file():
     """
@@ -438,11 +395,8 @@ def upload_file():
         return jsonify({"success": False, "error": str(e)}), 500
 
 
-# ─────────────────────────────────────────────
-# SECTION 11: ★ NEW History Endpoints
-# ─────────────────────────────────────────────
-# These are NEW endpoints used by Phase 3 dashboard
 
+# Chat History Endpoints
 @app.route('/history', methods=['GET'])
 def get_history():
     """
@@ -591,19 +545,5 @@ def home():
     })
 
 
-# ─────────────────────────────────────────────
-# SECTION 12: Run Server
-# ─────────────────────────────────────────────
-
 if __name__ == '__main__':
-    print("=" * 55)
-    print("🚀 Live AI Assistant - Database Edition")
-    print("=" * 55)
-    print("🤖 AI      : Google Gemini 2.5 Flash")
-    print("🗄️  Database: SQLite (database.db)")
-    print("💬 Memory  : Permanent (survives restarts!)")
-    print("📁 Files   : PDF, Images, Word, Text")
-    print("=" * 55)
-    print("📍 http://localhost:5000")
-    print("=" * 55)
     app.run(debug=True, host='0.0.0.0', port=5000)

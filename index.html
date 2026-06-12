@@ -5,6 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Live AI Assistant</title>
     <style>
+
+        /* =============================================
+           BASE RESET
+           ============================================= */
         * { margin: 0; padding: 0; box-sizing: border-box; }
 
         body {
@@ -17,32 +21,39 @@
             padding: 20px;
         }
 
+        /* =============================================
+           MAIN CHAT CONTAINER
+           ============================================= */
         .container {
             width: 100%;
             max-width: 850px;
             background: white;
             border-radius: 20px;
             box-shadow: 0 20px 60px rgba(0,0,0,0.3);
-            overflow: hidden;
+            overflow: hidden;           /* Clip drawer inside container */
             display: flex;
             flex-direction: column;
             height: 92vh;
+            position: relative;         /* Drawer is positioned relative to this */
         }
 
-        /* ── Header ── */
+        /* =============================================
+           HEADER
+           ============================================= */
         .header {
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
             padding: 16px 20px;
             text-align: center;
+            flex-shrink: 0;             /* Don't shrink when content grows */
         }
-
         .header h1 { font-size: 22px; margin-bottom: 4px; }
         .header p  { font-size: 13px; opacity: 0.9; }
 
         .controls {
             display: flex;
             justify-content: center;
+            align-items: center;
             gap: 12px;
             flex-wrap: wrap;
             margin-top: 10px;
@@ -58,6 +69,7 @@
             font-size: 13px;
         }
 
+        /* Toggle switch CSS */
         .toggle-switch { position: relative; width: 44px; height: 22px; }
         .toggle-switch input { opacity: 0; width: 0; height: 0; }
         .slider {
@@ -75,27 +87,31 @@
         input:checked + .slider { background: #4CAF50; }
         input:checked + .slider:before { transform: translateX(22px); }
 
-        .icon-btn {
+        /* History button in header */
+        .history-btn {
             background: rgba(255,255,255,0.2);
-            border: none; color: white;
-            width: 34px; height: 34px;
-            border-radius: 50%; cursor: pointer;
-            font-size: 16px; transition: all 0.2s;
-            display: flex; align-items: center; justify-content: center;
+            color: white;
+            border: 1px solid rgba(255,255,255,0.4);
+            padding: 6px 14px;
+            border-radius: 20px;
+            cursor: pointer;
+            font-size: 13px;
+            transition: background 0.2s;
         }
-        .icon-btn:hover { background: rgba(255,255,255,0.35); }
-        .icon-btn.active { background: #4CAF50; }
+        .history-btn:hover { background: rgba(255,255,255,0.35); }
 
-        /* ── Chat area ── */
+        /* =============================================
+           CHAT MESSAGES AREA
+           ============================================= */
         .chat-container {
-            flex: 1; overflow-y: auto;
-            padding: 20px; background: #f5f6fa;
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+            background: #f5f6fa;
         }
 
-        .welcome {
-            text-align: center; color: #666;
-            padding: 30px 20px;
-        }
+        /* Welcome screen */
+        .welcome { text-align: center; color: #666; padding: 30px 20px; }
         .welcome h2 { color: #667eea; margin-bottom: 8px; }
         .welcome p  { font-size: 14px; margin-bottom: 6px; }
 
@@ -110,9 +126,10 @@
             border: 1px solid #e0e0e0;
         }
         .feature-card span { font-size: 20px; }
-        .feature-card h3 { font-size: 13px; margin: 4px 0 2px; color: #333; }
-        .feature-card p  { font-size: 12px; color: #888; }
+        .feature-card h3   { font-size: 13px; margin: 4px 0 2px; color: #333; }
+        .feature-card p    { font-size: 12px; color: #888; }
 
+        /* Message bubbles */
         .message {
             margin-bottom: 14px;
             display: flex;
@@ -122,8 +139,8 @@
             from { opacity: 0; transform: translateY(8px); }
             to   { opacity: 1; transform: translateY(0); }
         }
-
         .message.user { justify-content: flex-end; }
+
         .message-content {
             max-width: 72%; padding: 11px 15px;
             border-radius: 16px; word-wrap: break-word;
@@ -138,15 +155,15 @@
             border: 1px solid #e0e0e0;
         }
         .message.ai.search-used .message-content { border-left: 4px solid #4CAF50; }
-        .message.ai.file-used  .message-content { border-left: 4px solid #FF9800; }
+        .message.ai.file-used   .message-content { border-left: 4px solid #FF9800; }
 
         .msg-meta {
             font-size: 11px; opacity: 0.7; margin-top: 5px;
             display: flex; align-items: center; gap: 6px;
         }
         .badge {
-            font-size: 10px; padding: 2px 7px; border-radius: 8px;
-            font-weight: 600;
+            font-size: 10px; padding: 2px 7px;
+            border-radius: 8px; font-weight: 600;
         }
         .badge.search { background: #e8f5e9; color: #388e3c; }
         .badge.file   { background: #fff3e0; color: #f57c00; }
@@ -155,7 +172,7 @@
         .sources a { color: #667eea; text-decoration: none; }
         .sources a:hover { text-decoration: underline; }
 
-        /* File preview card inside chat */
+        /* File card in chat */
         .file-card {
             background: #fff8e1; border: 1px solid #ffe082;
             border-radius: 10px; padding: 10px 12px;
@@ -166,11 +183,8 @@
         .file-card .file-info .name { font-weight: 600; color: #333; }
         .file-card .file-info .type { color: #888; font-size: 11px; }
 
-        /* Typing indicator */
-        .typing {
-            display: flex; gap: 5px;
-            padding: 10px 14px;
-        }
+        /* Typing dots */
+        .typing { display: flex; gap: 5px; padding: 10px 14px; }
         .typing span {
             width: 8px; height: 8px;
             background: #667eea; border-radius: 50%;
@@ -183,14 +197,16 @@
             30%          { transform: translateY(-8px); }
         }
 
-        /* ── Input area ── */
+        /* =============================================
+           INPUT AREA
+           ============================================= */
         .input-area {
             background: white;
             border-top: 1px solid #e0e0e0;
             padding: 12px 16px;
+            flex-shrink: 0;
         }
 
-        /* File upload preview strip */
         .file-preview {
             display: none;
             background: #fff8e1; border: 1px solid #ffe082;
@@ -205,17 +221,11 @@
             cursor: pointer; color: #e53935; font-size: 16px;
         }
 
-        .input-row {
-            display: flex; gap: 8px; align-items: center;
-        }
+        .input-row { display: flex; gap: 8px; align-items: center; }
 
-        /* Paperclip / upload button */
         .upload-btn {
-            background: #fff3e0;
-            border: 2px solid #FF9800;
-            color: #FF9800;
-            width: 44px; height: 44px;
-            border-radius: 50%; cursor: pointer;
+            background: #fff3e0; border: 2px solid #FF9800; color: #FF9800;
+            width: 44px; height: 44px; border-radius: 50%; cursor: pointer;
             font-size: 18px; transition: all 0.2s;
             display: flex; align-items: center; justify-content: center;
             flex-shrink: 0;
@@ -223,16 +233,13 @@
         .upload-btn:hover { background: #FF9800; color: white; }
 
         .mic-btn {
-            background: #f3f0ff;
-            border: 2px solid #667eea;
-            color: #667eea;
-            width: 44px; height: 44px;
-            border-radius: 50%; cursor: pointer;
+            background: #f3f0ff; border: 2px solid #667eea; color: #667eea;
+            width: 44px; height: 44px; border-radius: 50%; cursor: pointer;
             font-size: 18px; transition: all 0.2s;
             display: flex; align-items: center; justify-content: center;
             flex-shrink: 0;
         }
-        .mic-btn:hover  { background: #667eea; color: white; }
+        .mic-btn:hover { background: #667eea; color: white; }
         .mic-btn.listening {
             background: #e53935; color: white; border-color: #e53935;
             animation: pulse 1s infinite;
@@ -254,28 +261,247 @@
             color: white; border: none;
             padding: 11px 22px; border-radius: 22px;
             cursor: pointer; font-size: 14px; font-weight: 600;
-            transition: transform 0.2s;
-            flex-shrink: 0;
+            transition: transform 0.2s; flex-shrink: 0;
         }
         .send-btn:hover    { transform: scale(1.04); }
         .send-btn:disabled { opacity: 0.55; cursor: not-allowed; transform: none; }
 
-        .hint {
-            font-size: 11px; color: #aaa;
-            text-align: center; margin-top: 6px;
+        .hint { font-size: 11px; color: #aaa; text-align: center; margin-top: 6px; }
+
+        /* =============================================
+           ★ HISTORY DRAWER (SLIDE-IN FROM RIGHT)
+           =============================================
+           This is the key concept:
+           - Position: absolute (sits on top of chat)
+           - Right: 0 (aligned to right edge)
+           - Width: 100% (covers full container)
+           - transform: translateX(100%) hides it off screen
+           - transition makes it animate smoothly
+           - When .open class added → slides into view
+        */
+        .history-drawer {
+            position: absolute;         /* Sits on top of everything */
+            top: 0;
+            right: 0;
+            width: 100%;                /* Full width of container */
+            height: 100%;               /* Full height */
+            background: white;
+            z-index: 100;               /* Above chat content */
+            display: flex;
+            flex-direction: column;
+
+            /* Hidden: pushed completely off-screen to the right */
+            transform: translateX(100%);
+
+            /* Smooth animation when showing/hiding */
+            transition: transform 0.3s ease;
         }
+
+        /* When .open is added by JavaScript → slides into view */
+        .history-drawer.open {
+            transform: translateX(0);
+        }
+
+        /* Drawer header */
+        .drawer-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 16px 20px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-shrink: 0;
+        }
+        .drawer-header h2 { font-size: 18px; }
+
+        .close-drawer-btn {
+            background: rgba(255,255,255,0.2);
+            border: none; color: white;
+            width: 32px; height: 32px;
+            border-radius: 50%; cursor: pointer;
+            font-size: 18px; transition: background 0.2s;
+            display: flex; align-items: center; justify-content: center;
+        }
+        .close-drawer-btn:hover { background: rgba(255,255,255,0.35); }
+
+        /* Drawer body - two panels side by side */
+        .drawer-body {
+            display: grid;
+            grid-template-columns: 300px 1fr;  /* Left fixed, right fills rest */
+            flex: 1;
+            overflow: hidden;
+        }
+
+        /* ── Left: conversation list ── */
+        .drawer-left {
+            border-right: 1px solid #e0e0e0;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .drawer-search {
+            padding: 12px;
+            border-bottom: 1px solid #eee;
+        }
+        .search-wrapper { position: relative; }
+        .search-wrapper span {
+            position: absolute; left: 10px; top: 50%;
+            transform: translateY(-50%);
+            font-size: 13px; color: #aaa;
+            pointer-events: none;
+        }
+        .drawer-search input {
+            width: 100%; padding: 8px 10px 8px 30px;
+            border: 1.5px solid #e0e0e0; border-radius: 18px;
+            font-size: 13px; outline: none; transition: border 0.2s;
+        }
+        .drawer-search input:focus { border-color: #667eea; }
+
+        .drawer-stats {
+            padding: 6px 14px;
+            background: #f8f9fa;
+            border-bottom: 1px solid #eee;
+            font-size: 12px; color: #666;
+            display: flex; justify-content: space-between;
+        }
+
+        .conv-list {
+            flex: 1; overflow-y: auto; padding: 6px;
+        }
+
+        /* Date group header */
+        .date-label {
+            font-size: 10px; font-weight: 700;
+            color: #bbb; text-transform: uppercase;
+            letter-spacing: 0.5px; padding: 8px 8px 3px;
+        }
+
+        /* Conversation card */
+        .conv-card {
+            padding: 10px 12px; border-radius: 10px;
+            cursor: pointer; transition: background 0.15s;
+            margin-bottom: 3px; position: relative;
+            border: 1.5px solid transparent;
+        }
+        .conv-card:hover { background: #f0f2ff; }
+        .conv-card.active { background: #eef0ff; border-color: #667eea; }
+
+        .conv-title {
+            font-size: 13px; font-weight: 600; color: #333;
+            white-space: nowrap; overflow: hidden;
+            text-overflow: ellipsis; padding-right: 26px;
+        }
+        .conv-meta { font-size: 11px; color: #aaa; margin-top: 3px; display: flex; gap: 8px; }
+
+        /* Delete button (hidden until hover) */
+        .del-btn {
+            position: absolute; right: 8px; top: 50%;
+            transform: translateY(-50%);
+            background: none; border: none; cursor: pointer;
+            font-size: 14px; color: #ccc;
+            opacity: 0; transition: opacity 0.2s, color 0.2s;
+            padding: 3px; border-radius: 4px;
+        }
+        .conv-card:hover .del-btn { opacity: 1; }
+        .del-btn:hover { color: #e53935; background: #ffeaea; }
+
+        /* Empty state */
+        .empty-conv {
+            text-align: center; padding: 30px 16px; color: #bbb;
+        }
+        .empty-conv .ei { font-size: 36px; margin-bottom: 8px; }
+        .empty-conv p   { font-size: 13px; }
+
+        /* ── Right: message viewer ── */
+        .drawer-right {
+            display: flex; flex-direction: column; overflow: hidden;
+            background: #f5f6fa;
+        }
+
+        .msg-view-header {
+            background: white; padding: 12px 16px;
+            border-bottom: 1px solid #e0e0e0;
+            display: flex; align-items: center;
+            justify-content: space-between; flex-shrink: 0;
+        }
+        .msg-view-title { font-size: 14px; font-weight: 600; color: #333; }
+        .msg-view-meta  { font-size: 11px; color: #aaa; }
+
+        .msg-view-body {
+            flex: 1; overflow-y: auto; padding: 16px;
+        }
+
+        /* No selection placeholder */
+        .no-sel {
+            display: flex; flex-direction: column;
+            align-items: center; justify-content: center;
+            height: 100%; color: #bbb; text-align: center;
+        }
+        .no-sel .ni { font-size: 48px; margin-bottom: 12px; }
+        .no-sel h3  { font-size: 16px; color: #ccc; margin-bottom: 6px; }
+        .no-sel p   { font-size: 13px; }
+
+        /* History message bubbles */
+        .h-msg-row { display: flex; margin-bottom: 12px; animation: fadeIn 0.3s; }
+        .h-msg-row.user      { justify-content: flex-end; }
+        .h-bubble {
+            max-width: 70%; padding: 9px 13px; border-radius: 14px;
+            font-size: 13px; line-height: 1.5; word-wrap: break-word;
+        }
+        .h-msg-row.user      .h-bubble {
+            background: linear-gradient(135deg, #667eea, #764ba2); color: white;
+        }
+        .h-msg-row.assistant .h-bubble {
+            background: white; color: #333; border: 1px solid #e0e0e0;
+        }
+        .h-bubble-time { font-size: 10px; opacity: 0.65; margin-top: 4px; text-align: right; }
+
+        /* Highlight search matches */
+        .hl { background: #fff176; border-radius: 2px; padding: 0 2px; }
+
+        /* Loading spinner */
+        .spinner {
+            width: 24px; height: 24px;
+            border: 3px solid #e0e0e0;
+            border-top-color: #667eea;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            margin: 24px auto;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* Toast popup */
+        .toast {
+            position: fixed; bottom: 24px; left: 50%;
+            transform: translateX(-50%) translateY(80px);
+            background: #333; color: white;
+            padding: 10px 20px; border-radius: 20px;
+            font-size: 13px; opacity: 0;
+            transition: all 0.3s ease; z-index: 9999;
+        }
+        .toast.show    { opacity: 1; transform: translateX(-50%) translateY(0); }
+        .toast.success { background: #43a047; }
+        .toast.error   { background: #e53935; }
+
+        /* Scrollbar */
+        ::-webkit-scrollbar       { width: 4px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #ccc; border-radius: 2px; }
+
     </style>
 </head>
 <body>
 <div class="container">
 
-    <!-- ── HEADER ── -->
+    <!-- ══════════════════════════════════════
+         HEADER
+    ══════════════════════════════════════ -->
     <div class="header">
         <h1>🤖 Live AI Assistant</h1>
         <p>Gemini 2.5 Flash &nbsp;|&nbsp; Web Search &nbsp;|&nbsp; File Analysis &nbsp;|&nbsp; Voice</p>
 
         <div class="controls">
-            <!-- Web search toggle -->
             <div class="toggle-group">
                 <span>🔍 Web Search</span>
                 <label class="toggle-switch">
@@ -284,7 +510,6 @@
                 </label>
             </div>
 
-            <!-- Voice output toggle -->
             <div class="toggle-group">
                 <span>🔊 Auto-Speak</span>
                 <label class="toggle-switch">
@@ -292,82 +517,112 @@
                     <span class="slider"></span>
                 </label>
             </div>
+
+            <!-- ★ History button opens the drawer -->
+            <button class="history-btn" onclick="openDrawer()">
+                📊 History
+            </button>
         </div>
     </div>
 
-    <!-- ── CHAT ── -->
+    <!-- ══════════════════════════════════════
+         CHAT MESSAGES
+    ══════════════════════════════════════ -->
     <div class="chat-container" id="chatContainer">
         <div class="welcome">
             <h2>Welcome! 👋</h2>
             <p>Ask anything, upload a file, or search the web.</p>
             <div class="features-grid">
-                <div class="feature-card">
-                    <span>💬</span>
-                    <h3>Smart Chat</h3>
-                    <p>Context-aware AI with memory</p>
-                </div>
-                <div class="feature-card">
-                    <span>🔍</span>
-                    <h3>Web Search</h3>
-                    <p>Real Google results via SerpAPI</p>
-                </div>
-                <div class="feature-card">
-                    <span>📁</span>
-                    <h3>File Analysis</h3>
-                    <p>PDF, images, Word, text files</p>
-                </div>
-                <div class="feature-card">
-                    <span>🎤</span>
-                    <h3>Voice I/O</h3>
-                    <p>Speak in, listen to responses</p>
-                </div>
+                <div class="feature-card"><span>💬</span><h3>Smart Chat</h3><p>Context-aware AI with memory</p></div>
+                <div class="feature-card"><span>🔍</span><h3>Web Search</h3><p>Real Google results</p></div>
+                <div class="feature-card"><span>📁</span><h3>File Analysis</h3><p>PDF, Images, Word, Text</p></div>
+                <div class="feature-card"><span>📊</span><h3>History</h3><p>All your past chats saved</p></div>
             </div>
         </div>
     </div>
 
-    <!-- ── INPUT ── -->
+    <!-- ══════════════════════════════════════
+         INPUT AREA
+    ══════════════════════════════════════ -->
     <div class="input-area">
-
-        <!-- File preview strip (hidden until file chosen) -->
         <div class="file-preview" id="filePreview">
             <span id="filePreviewName">📎 No file</span>
             <button class="remove-btn" onclick="removeFile()">✕</button>
         </div>
-
         <div class="input-row">
-            <!-- Hidden file input -->
             <input type="file" id="fileInput" style="display:none"
                    accept=".pdf,.png,.jpg,.jpeg,.gif,.webp,.docx,.txt"
                    onchange="handleFileSelect(event)">
-
-            <!-- Paperclip button triggers hidden input -->
-            <button class="upload-btn" onclick="document.getElementById('fileInput').click()" title="Upload file">
-                📎
-            </button>
-
-            <!-- Mic button -->
-            <button class="mic-btn" id="micBtn" onclick="toggleMic()" title="Voice input">
-                🎤
-            </button>
-
-            <!-- Text input -->
+            <button class="upload-btn" onclick="document.getElementById('fileInput').click()" title="Upload file">📎</button>
+            <button class="mic-btn" id="micBtn" onclick="toggleMic()" title="Voice input">🎤</button>
             <input type="text" id="messageInput"
                    placeholder="Type a message or upload a file..."
                    onkeypress="if(event.key==='Enter') sendMessage()">
-
-            <!-- Send button -->
             <button class="send-btn" id="sendBtn" onclick="sendMessage()">Send</button>
         </div>
-
         <p class="hint">Supported files: PDF · PNG · JPG · DOCX · TXT &nbsp;(max 10 MB)</p>
+    </div>
+
+    <!-- ══════════════════════════════════════
+         ★ HISTORY DRAWER (slides in from right)
+    ══════════════════════════════════════ -->
+    <div class="history-drawer" id="historyDrawer">
+
+        <!-- Drawer header -->
+        <div class="drawer-header">
+            <h2>📊 Chat History</h2>
+            <button class="close-drawer-btn" onclick="closeDrawer()" title="Close">✕</button>
+        </div>
+
+        <!-- Drawer body: left list + right messages -->
+        <div class="drawer-body">
+
+            <!-- Left: conversation list -->
+            <div class="drawer-left">
+                <div class="drawer-search">
+                    <div class="search-wrapper">
+                        <span>🔍</span>
+                        <input type="text" id="drawerSearch"
+                               placeholder="Search conversations..."
+                               oninput="handleDrawerSearch(this.value)">
+                    </div>
+                </div>
+                <div class="drawer-stats">
+                    <span id="drawerStats">Loading...</span>
+                    <span id="drawerSearchCount" style="color:#667eea"></span>
+                </div>
+                <div class="conv-list" id="convList">
+                    <div class="spinner"></div>
+                </div>
+            </div>
+
+            <!-- Right: message viewer -->
+            <div class="drawer-right">
+                <div class="msg-view-header">
+                    <span class="msg-view-title" id="viewTitle">Select a conversation</span>
+                    <span class="msg-view-meta"  id="viewMeta"></span>
+                </div>
+                <div class="msg-view-body" id="msgViewBody">
+                    <div class="no-sel">
+                        <div class="ni">💬</div>
+                        <h3>No conversation selected</h3>
+                        <p>Click any chat on the left</p>
+                    </div>
+                </div>
+            </div>
+
+        </div>
     </div>
 
 </div>
 
+<!-- Toast notification -->
+<div class="toast" id="toast"></div>
+
 <script>
-// ────────────────────────────────────────────
-// 1. INITIALISATION
-// ────────────────────────────────────────────
+// ═══════════════════════════════════════════════
+// SECTION A: CHAT FUNCTIONALITY (same as before)
+// ═══════════════════════════════════════════════
 
 const chatEl      = document.getElementById('chatContainer');
 const inputEl     = document.getElementById('messageInput');
@@ -379,120 +634,89 @@ const fileInput   = document.getElementById('fileInput');
 const filePreview = document.getElementById('filePreview');
 const filePreviewName = document.getElementById('filePreviewName');
 
-// Persistent session ID (so the server keeps our memory)
+const API = 'http://localhost:5000';
+
+// Session ID - persists in localStorage
 let sessionId = localStorage.getItem('ai_session_id');
 if (!sessionId) {
     sessionId = 'sess_' + Date.now() + '_' + Math.random().toString(36).slice(2, 9);
     localStorage.setItem('ai_session_id', sessionId);
 }
 
-let selectedFile  = null;   // Currently selected file
-let isListening   = false;  // Microphone state
-let recognition   = null;   // SpeechRecognition object
+let selectedFile = null;
+let isListening  = false;
+let recognition  = null;
 
-// ────────────────────────────────────────────
-// 2. FILE HANDLING
-// ────────────────────────────────────────────
+// ── File handling ──────────────────────────────
 
-function handleFileSelect(event) {
-    // Called when user picks a file via the file input
-    const file = event.target.files[0];
+function handleFileSelect(e) {
+    const file = e.target.files[0];
     if (!file) return;
-
     selectedFile = file;
-
-    // Show preview strip
     filePreview.classList.add('show');
-    filePreviewName.textContent = `📎 ${file.name}  (${formatBytes(file.size)})`;
+    filePreviewName.textContent = `📎 ${file.name} (${formatBytes(file.size)})`;
     inputEl.placeholder = 'Ask something about this file…';
 }
 
 function removeFile() {
-    // Clear selected file and hide preview strip
     selectedFile = null;
     fileInput.value = '';
     filePreview.classList.remove('show');
     inputEl.placeholder = 'Type a message or upload a file...';
 }
 
-function formatBytes(bytes) {
-    // Convert bytes to human-readable size
-    // Example: 1048576 → "1.0 MB"
-    if (bytes < 1024)        return bytes + ' B';
-    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
-    return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+function formatBytes(b) {
+    if (b < 1024) return b + ' B';
+    if (b < 1048576) return (b/1024).toFixed(1) + ' KB';
+    return (b/1048576).toFixed(1) + ' MB';
 }
 
-function getFileIcon(filename) {
-    // Return an emoji based on file extension
-    const ext = filename.split('.').pop().toLowerCase();
-    const icons = {
-        pdf: '📄', png: '🖼️', jpg: '🖼️', jpeg: '🖼️',
-        gif: '🖼️', webp: '🖼️', docx: '📝', txt: '📃'
-    };
-    return icons[ext] || '📎';
+function getFileIcon(name) {
+    const ext = name.split('.').pop().toLowerCase();
+    return {pdf:'📄',png:'🖼️',jpg:'🖼️',jpeg:'🖼️',gif:'🖼️',webp:'🖼️',docx:'📝',txt:'📃'}[ext] || '📎';
 }
 
-// ────────────────────────────────────────────
-// 3. SENDING MESSAGES
-// ────────────────────────────────────────────
+// ── Send message ───────────────────────────────
 
 async function sendMessage() {
     const message = inputEl.value.trim();
-
-    // Need at least a message OR a file
     if (!message && !selectedFile) return;
 
-    // Disable UI while waiting
     sendBtn.disabled = true;
-    const displayText = message || `Analyze this file: ${selectedFile.name}`;
 
-    // Show user bubble
     if (selectedFile) {
         addFileCard(selectedFile.name, message);
     } else {
-        addMessage(displayText, 'user');
+        addMessage(message, 'user');
     }
 
     inputEl.value = '';
-
-    // Show typing dots
     showTyping();
 
     try {
         let data;
 
         if (selectedFile) {
-            // ── FILE UPLOAD PATH ──
-            // Use FormData (not JSON) because we're sending a file
-            // FormData can hold both text and binary data
-            const formData = new FormData();
-            formData.append('file', selectedFile);          // The file itself
-            formData.append('message', message || 'Please analyze this file and provide a summary');
-            formData.append('session_id', sessionId);
-
-            const res = await fetch('http://localhost:5000/upload', {
-                method: 'POST',
-                body: formData
-                // NOTE: Do NOT set Content-Type header when using FormData
-                // The browser sets it automatically with the correct boundary
-            });
+            // File upload uses FormData (not JSON)
+            const form = new FormData();
+            form.append('file', selectedFile);
+            form.append('message', message || 'Please analyze this file');
+            form.append('session_id', sessionId);
+            const res = await fetch(`${API}/upload`, { method:'POST', body:form });
             data = await res.json();
 
         } else if (searchToggle.checked) {
-            // ── WEB SEARCH PATH ──
-            const res = await fetch('http://localhost:5000/search', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+            const res = await fetch(`${API}/search`, {
+                method:'POST',
+                headers:{'Content-Type':'application/json'},
                 body: JSON.stringify({ message, session_id: sessionId })
             });
             data = await res.json();
 
         } else {
-            // ── REGULAR CHAT PATH ──
-            const res = await fetch('http://localhost:5000/chat', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+            const res = await fetch(`${API}/chat`, {
+                method:'POST',
+                headers:{'Content-Type':'application/json'},
                 body: JSON.stringify({ message, session_id: sessionId })
             });
             data = await res.json();
@@ -501,67 +725,53 @@ async function sendMessage() {
         removeTyping();
 
         if (data.success) {
-            // Decide badge/style based on what happened
-            const isFile   = !!selectedFile;
-            const isSearch = data.search_used;
             addMessage(data.response, 'ai', {
-                isFile,
-                isSearch,
-                sources: data.sources || [],
-                fileType: data.file_type || null
+                isFile  : !!selectedFile,
+                isSearch: data.search_used,
+                sources : data.sources || [],
             });
-
-            // Auto-speak
             if (speakToggle.checked) speakText(data.response);
         } else {
-            addMessage('❌ Error: ' + (data.error || 'Unknown error'), 'ai');
+            addMessage('❌ Error: ' + (data.error || 'Unknown'), 'ai');
         }
 
     } catch (err) {
         removeTyping();
-        addMessage('❌ Could not reach the server. Is it running?', 'ai');
+        addMessage('❌ Cannot reach server. Is it running?', 'ai');
     }
 
-    // Clear file state after sending
     removeFile();
     sendBtn.disabled = false;
     inputEl.focus();
 }
 
-// ────────────────────────────────────────────
-// 4. RENDERING MESSAGES
-// ────────────────────────────────────────────
+// ── Render messages ────────────────────────────
 
 function addMessage(text, role, meta = {}) {
-    const wrap = document.createElement('div');
-    wrap.className = 'message ' + role;
+    clearWelcomeMessage();
 
-    if (role === 'ai') {
-        if (meta.isFile)   wrap.classList.add('file-used');
-        if (meta.isSearch) wrap.classList.add('search-used');
-    }
+    const wrap   = document.createElement('div');
+    wrap.className = `message ${role}`;
+    if (meta.isFile)   wrap.classList.add('file-used');
+    if (meta.isSearch) wrap.classList.add('search-used');
 
     const bubble = document.createElement('div');
     bubble.className = 'message-content';
-    bubble.innerHTML = text.replace(/\n/g, '<br>');
+    bubble.innerHTML = escHtml(text).replace(/\n/g,'<br>');
 
-    // Meta line (time + badges)
     const metaDiv = document.createElement('div');
     metaDiv.className = 'msg-meta';
-    metaDiv.textContent = new Date().toLocaleTimeString();
-
+    metaDiv.textContent = meta.timestamp ? fmtTime(meta.timestamp) : new Date().toLocaleTimeString();
     if (meta.isFile)   metaDiv.innerHTML += ' <span class="badge file">📁 File</span>';
     if (meta.isSearch) metaDiv.innerHTML += ' <span class="badge search">🔍 Web</span>';
-
     bubble.appendChild(metaDiv);
 
-    // Source links
     if (meta.sources && meta.sources.length) {
-        const src = document.createElement('div');
-        src.className = 'sources';
-        src.innerHTML = '📚 Sources: ' +
-            meta.sources.map((u, i) => `<a href="${u}" target="_blank">[${i+1}]</a>`).join(' ');
-        bubble.appendChild(src);
+        const s = document.createElement('div');
+        s.className = 'sources';
+        s.innerHTML = '📚 Sources: ' +
+            meta.sources.map((u,i) => `<a href="${u}" target="_blank">[${i+1}]</a>`).join(' ');
+        bubble.appendChild(s);
     }
 
     wrap.appendChild(bubble);
@@ -569,77 +779,399 @@ function addMessage(text, role, meta = {}) {
     chatEl.scrollTop = chatEl.scrollHeight;
 }
 
+function clearWelcomeMessage() {
+    const welcome = chatEl.querySelector('.welcome');
+    if (welcome) welcome.remove();
+}
+
 function addFileCard(filename, question) {
-    // Show a special card in the chat for file uploads
     const wrap = document.createElement('div');
     wrap.className = 'message user';
-
     const card = document.createElement('div');
     card.className = 'file-card';
-    card.innerHTML = `
-        <span class="file-icon">${getFileIcon(filename)}</span>
+    card.innerHTML = `<span class="file-icon">${getFileIcon(filename)}</span>
         <div class="file-info">
-            <div class="name">${filename}</div>
-            <div class="type">${question || 'Analyze this file'}</div>
+            <div class="name">${escHtml(filename)}</div>
+            <div class="type">${escHtml(question||'Analyze this file')}</div>
         </div>`;
-
     wrap.appendChild(card);
     chatEl.appendChild(wrap);
     chatEl.scrollTop = chatEl.scrollHeight;
 }
 
 function showTyping() {
-    const wrap = document.createElement('div');
-    wrap.className = 'message ai';
-    wrap.id = 'typing';
-    wrap.innerHTML = '<div class="typing"><span></span><span></span><span></span></div>';
-    chatEl.appendChild(wrap);
+    const w = document.createElement('div');
+    w.className = 'message ai'; w.id = 'typing';
+    w.innerHTML = '<div class="typing"><span></span><span></span><span></span></div>';
+    chatEl.appendChild(w);
     chatEl.scrollTop = chatEl.scrollHeight;
 }
-
 function removeTyping() {
     const el = document.getElementById('typing');
     if (el) el.remove();
 }
 
-// ────────────────────────────────────────────
-// 5. VOICE INPUT (Speech → Text)
-// ────────────────────────────────────────────
+// ── Voice ──────────────────────────────────────
 
 if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
     recognition = new SR();
-    recognition.continuous = false;
-    recognition.interimResults = false;
-    recognition.lang = 'en-US';
-
-    recognition.onstart  = () => { isListening = true;  micBtn.classList.add('listening'); };
-    recognition.onend    = () => { isListening = false; micBtn.classList.remove('listening'); };
-    recognition.onerror  = () => { isListening = false; micBtn.classList.remove('listening'); };
+    recognition.continuous = false; recognition.interimResults = false; recognition.lang = 'en-US';
+    recognition.onstart  = () => { isListening=true;  micBtn.classList.add('listening'); };
+    recognition.onend    = () => { isListening=false; micBtn.classList.remove('listening'); };
+    recognition.onerror  = () => { isListening=false; micBtn.classList.remove('listening'); };
     recognition.onresult = e  => { inputEl.value = e.results[0][0].transcript; };
-} else {
-    micBtn.style.display = 'none';
-}
+} else { micBtn.style.display='none'; }
 
-function toggleMic() {
-    if (!recognition) return;
-    isListening ? recognition.stop() : recognition.start();
-}
-
-// ────────────────────────────────────────────
-// 6. VOICE OUTPUT (Text → Speech)
-// ────────────────────────────────────────────
+function toggleMic() { if (!recognition) return; isListening ? recognition.stop() : recognition.start(); }
 
 function speakText(text) {
     if (!('speechSynthesis' in window)) return;
     window.speechSynthesis.cancel();
-    const utt = new SpeechSynthesisUtterance(text);
-    utt.lang = 'en-US'; utt.rate = 1; utt.pitch = 1;
-    window.speechSynthesis.speak(utt);
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang='en-US'; u.rate=1; u.pitch=1;
+    window.speechSynthesis.speak(u);
+}
+
+// ═══════════════════════════════════════════════
+// SECTION B: HISTORY DRAWER
+// ═══════════════════════════════════════════════
+
+// Drawer state
+const drawerState = {
+    sessions       : [],
+    activeSessionId: null,
+    searchTimeout  : null
+};
+
+// ── Open / Close drawer ────────────────────────
+
+function openDrawer() {
+    /*
+     * Add 'open' class to drawer element.
+     * CSS transition handles the animation:
+     *   transform: translateX(100%) → translateX(0)
+     */
+    document.getElementById('historyDrawer').classList.add('open');
+    loadDrawerSessions();  // Load fresh data every time drawer opens
+}
+
+function closeDrawer() {
+    /*
+     * Remove 'open' class → CSS slides it back off screen
+     */
+    document.getElementById('historyDrawer').classList.remove('open');
+}
+
+// Close drawer if user clicks outside it (on the chat area)
+document.getElementById('chatContainer').addEventListener('click', function() {
+    const drawer = document.getElementById('historyDrawer');
+    if (drawer.classList.contains('open')) closeDrawer();
+});
+
+// ── Load all sessions ──────────────────────────
+
+async function loadDrawerSessions() {
+    /*
+     * Called every time drawer opens.
+     * Fetches fresh data from /history endpoint.
+     */
+    document.getElementById('convList').innerHTML = '<div class="spinner"></div>';
+
+    try {
+        const res  = await fetch(`${API}/history`);
+        const data = await res.json();
+
+        if (data.success) {
+            drawerState.sessions = data.sessions;
+            renderDrawerSessions(drawerState.sessions);
+            const c = data.sessions.length;
+            document.getElementById('drawerStats').textContent =
+                `${c} conversation${c!==1?'s':''}`;
+        } else {
+            document.getElementById('convList').innerHTML =
+                '<div class="empty-conv"><div class="ei">⚠️</div><p>Failed to load</p></div>';
+        }
+    } catch (err) {
+        document.getElementById('convList').innerHTML =
+            '<div class="empty-conv"><div class="ei">⚠️</div><p>Server not reachable</p></div>';
+    }
+}
+
+// ── Render conversation cards ──────────────────
+
+function renderDrawerSessions(sessions, highlight = '') {
+    const listEl = document.getElementById('convList');
+
+    if (!sessions.length) {
+        listEl.innerHTML = `<div class="empty-conv">
+            <div class="ei">💬</div>
+            <p>${highlight ? `No results for "${escHtml(highlight)}"` : 'No conversations yet'}</p>
+        </div>`;
+        return;
+    }
+
+    // Group by date
+    const groups = groupByDate(sessions);
+    let html = '';
+
+    for (const [label, group] of Object.entries(groups)) {
+        html += `<div class="date-label">${label}</div>`;
+
+        for (const s of group) {
+            const title = highlight
+                ? hlText(escHtml(s.title), highlight)
+                : escHtml(s.title);
+            const count = s.message_count || 0;
+            const time  = fmtTime(s.updated_at);
+            const isActive = s.session_id === drawerState.activeSessionId;
+
+            html += `
+            <div class="conv-card ${isActive ? 'active' : ''}"
+                 id="dcard-${s.session_id}"
+                 onclick="selectDrawerSession('${s.session_id}','${escHtml(s.title).replace(/'/g,"\\'")}','${s.updated_at}')">
+                <div class="conv-title">${title}</div>
+                <div class="conv-meta">
+                    <span>💬 ${count} msg${count!==1?'s':''}</span>
+                    <span>🕐 ${time}</span>
+                </div>
+                <button class="del-btn"
+                        onclick="confirmDrawerDelete(event,'${s.session_id}')"
+                        title="Delete">🗑️</button>
+            </div>`;
+        }
+    }
+
+    listEl.innerHTML = html;
+}
+
+// ── Select a conversation ──────────────────────
+
+async function selectDrawerSession(sessionId, title, updatedAt) {
+    /*
+     * Load messages for the selected conversation.
+     * URL: GET /history/<session_id>
+     */
+    drawerState.activeSessionId = sessionId;
+
+    // Update card highlight
+    document.querySelectorAll('.conv-card').forEach(c => c.classList.remove('active'));
+    const card = document.getElementById(`dcard-${sessionId}`);
+    if (card) card.classList.add('active');
+
+    // Update right panel header
+    document.getElementById('viewTitle').textContent = title;
+    document.getElementById('viewMeta').textContent  = `Last active: ${fmtTime(updatedAt)}`;
+
+    // Show spinner while loading
+    document.getElementById('msgViewBody').innerHTML = '<div class="spinner"></div>';
+
+    try {
+        const res  = await fetch(`${API}/history/${sessionId}`);
+        const data = await res.json();
+
+        if (data.success) {
+            renderDrawerMessages(data.messages);
+        } else {
+            document.getElementById('msgViewBody').innerHTML =
+                '<p style="padding:16px;color:#aaa">Failed to load messages</p>';
+        }
+    } catch (err) {
+        document.getElementById('msgViewBody').innerHTML =
+            '<p style="padding:16px;color:#e53935">Connection error</p>';
+    }
+}
+
+// ── Render messages in drawer ──────────────────
+
+function renderDrawerMessages(messages) {
+    const body = document.getElementById('msgViewBody');
+
+    if (!messages.length) {
+        body.innerHTML = '<p style="padding:16px;color:#aaa;text-align:center">No messages</p>';
+        return;
+    }
+
+    let html = '';
+    for (const msg of messages) {
+        const content = escHtml(msg.content).replace(/\n/g,'<br>');
+        const time    = fmtTime(msg.timestamp);
+        html += `
+        <div class="h-msg-row ${msg.role}">
+            <div class="h-bubble">
+                ${content}
+                <div class="h-bubble-time">${time}</div>
+            </div>
+        </div>`;
+    }
+
+    body.innerHTML = html;
+    body.scrollTop = body.scrollHeight;  // Scroll to latest message
+}
+
+// ── Delete conversation ────────────────────────
+
+function confirmDrawerDelete(event, sessionId) {
+    event.stopPropagation();  // Don't trigger card click
+    if (!confirm('Delete this conversation? This cannot be undone.')) return;
+    deleteDrawerSession(sessionId);
+}
+
+async function deleteDrawerSession(sessionId) {
+    try {
+        const res  = await fetch(`${API}/history/${sessionId}`, { method:'DELETE' });
+        const data = await res.json();
+
+        if (data.success) {
+            // Remove from state
+            drawerState.sessions = drawerState.sessions.filter(s => s.session_id !== sessionId);
+
+            // Clear right panel if deleted session was active
+            if (drawerState.activeSessionId === sessionId) {
+                drawerState.activeSessionId = null;
+                document.getElementById('viewTitle').textContent = 'Select a conversation';
+                document.getElementById('viewMeta').textContent  = '';
+                document.getElementById('msgViewBody').innerHTML = `
+                    <div class="no-sel">
+                        <div class="ni">💬</div>
+                        <h3>No conversation selected</h3>
+                        <p>Click any chat on the left</p>
+                    </div>`;
+            }
+
+            // Re-render list and update stats
+            renderDrawerSessions(drawerState.sessions);
+            const c = drawerState.sessions.length;
+            document.getElementById('drawerStats').textContent =
+                `${c} conversation${c!==1?'s':''}`;
+
+            showToast('Conversation deleted', 'success');
+        } else {
+            showToast('Failed to delete', 'error');
+        }
+    } catch (err) {
+        showToast('Connection error', 'error');
+    }
+}
+
+// ── Search ─────────────────────────────────────
+
+function handleDrawerSearch(query) {
+    /*
+     * DEBOUNCING: wait 400ms after user stops typing
+     * before making the API call.
+     */
+    if (drawerState.searchTimeout) clearTimeout(drawerState.searchTimeout);
+
+    query = query.trim();
+
+    if (!query) {
+        // Empty search → show all
+        renderDrawerSessions(drawerState.sessions);
+        document.getElementById('drawerSearchCount').textContent = '';
+        return;
+    }
+
+    // Wait 400ms then search
+    drawerState.searchTimeout = setTimeout(() => {
+        searchDrawerSessions(query);
+    }, 400);
+}
+
+async function searchDrawerSessions(query) {
+    try {
+        // encodeURIComponent makes query safe for URLs
+        // "what is AI?" → "what%20is%20AI%3F"
+        const res  = await fetch(`${API}/history/search?q=${encodeURIComponent(query)}`);
+        const data = await res.json();
+
+        if (data.success) {
+            renderDrawerSessions(data.results, query);
+            const c = data.results.length;
+            document.getElementById('drawerSearchCount').textContent =
+                `${c} result${c!==1?'s':''}`;
+        }
+    } catch (err) {
+        console.error('Search error:', err);
+    }
+}
+
+// ═══════════════════════════════════════════════
+// SECTION C: SHARED UTILITY FUNCTIONS
+// ═══════════════════════════════════════════════
+
+function groupByDate(sessions) {
+    const groups = {};
+    const now    = new Date();
+    const today  = now.toDateString();
+    const yday   = new Date(now - 86400000).toDateString();
+
+    for (const s of sessions) {
+        const d = new Date(s.updated_at);
+        const label = d.toDateString()===today ? 'Today'
+                    : d.toDateString()===yday  ? 'Yesterday'
+                    : d.toLocaleDateString('en-US',{month:'short',year:'numeric'});
+        if (!groups[label]) groups[label] = [];
+        groups[label].push(s);
+    }
+    return groups;
+}
+
+function fmtTime(ts) {
+    if (!ts) return '';
+    const d = new Date(ts.replace(' ','T'));
+    return d.toDateString() === new Date().toDateString()
+        ? d.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'})
+        : d.toLocaleDateString('en-US',{month:'short',day:'numeric'});
+}
+
+function hlText(text, query) {
+    // Wrap matching text in highlight span
+    const re = new RegExp(`(${escRegex(query)})`, 'gi');
+    return text.replace(re, '<span class="hl">$1</span>');
+}
+
+function escHtml(text) {
+    // Prevent XSS attacks by escaping HTML characters
+    return String(text)
+        .replace(/&/g,'&amp;').replace(/</g,'&lt;')
+        .replace(/>/g,'&gt;').replace(/"/g,'&quot;')
+        .replace(/'/g,'&#039;');
+}
+
+function escRegex(text) {
+    // Escape special regex characters in user input
+    return text.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
+}
+
+function showToast(msg, type='') {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.className   = `toast ${type} show`;
+    setTimeout(() => { t.className = `toast ${type}`; }, 2500);
+}
+
+async function loadCurrentSessionMessages() {
+    try {
+        const res = await fetch(`${API}/history/${sessionId}`);
+        const data = await res.json();
+        if (data.success && data.messages && data.messages.length) {
+            chatEl.innerHTML = '';
+            for (const msg of data.messages) {
+                addMessage(msg.content, msg.role === 'assistant' ? 'ai' : 'user', {
+                    timestamp: msg.timestamp,
+                    isSearch: msg.role === 'assistant' && msg.content.includes('https://'),
+                });
+            }
+        }
+    } catch (err) {
+        console.warn('Could not load current session messages', err);
+    }
 }
 
 // Focus input on load
 inputEl.focus();
+loadCurrentSessionMessages();
 </script>
 </body>
 </html>
