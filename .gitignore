@@ -24,3 +24,5 @@ Thumbs.db
 # Logs and runtime
 *.log
 instance/
+
+database.db

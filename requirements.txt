@@ -1,6 +1,15 @@
-# Requirements for Live AI Assistant with Gemini Grounding
-
+# Core server
 flask==3.0.0
 python-dotenv==1.0.0
 flask-cors==4.0.0
+
+# AI
 google-generativeai==0.3.2
+
+# Web Search
+google-search-results==2.4.2
+
+# File handling
+PyPDF2==3.0.1          # Read PDF files
+Pillow==10.0.0         # Handle images (JPG, PNG, etc.)
+python-docx==1.1.0     # Read Word documents (.docx)
