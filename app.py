@@ -1,260 +1,549 @@
-# ============================================
-# LIVE AI ASSISTANT - WITH CONVERSATION MEMORY
-# ============================================
-# Stable version with memory - web search removed for now
+# APP.PY - Live AI Assistant
 
-# --------------------------------------------
-# STEP 1: Import Libraries
-# --------------------------------------------
-from flask import Flask, request, jsonify, session
+from flask import Flask, request, jsonify
 from flask_cors import CORS
 import google.generativeai as genai
 import os
 from dotenv import load_dotenv
 from datetime import datetime
 import secrets
+from serpapi import GoogleSearch
 
-# --------------------------------------------
-# STEP 2: Load Environment Variables
-# --------------------------------------------
+import PyPDF2
+from PIL import Image
+import docx
+import io
+
+from database import (
+    init_db,               
+    create_session,        
+    update_session_time,   
+    save_message,          
+    get_session_messages,  
+    get_all_sessions,      
+    delete_session,      
+    search_messages,     
+    get_message_count    
+)
+
+
 load_dotenv()
 
-API_KEY = os.getenv("GEMINI_API_KEY")
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+SERPAPI_KEY    = os.getenv("SERPAPI_KEY")
 
-if not API_KEY:
+if not GEMINI_API_KEY:
     print("❌ ERROR: Gemini API key not found!")
     exit()
 
-# --------------------------------------------
-# STEP 3: Configure Gemini
-# --------------------------------------------
-genai.configure(api_key=API_KEY)
-model = genai.GenerativeModel('models/gemini-2.5-flash')
 
-print("✅ Gemini API configured!")
+# Configure Gemini
+genai.configure(api_key=GEMINI_API_KEY)
+model        = genai.GenerativeModel('models/gemini-2.5-flash')
+vision_model = genai.GenerativeModel('models/gemini-2.5-flash')
 
-# --------------------------------------------
-# STEP 4: Conversation Memory Storage
-# --------------------------------------------
-# This stores conversation history for each user
-# Key = session ID, Value = list of messages
-conversation_memory = {}
+print("✅ Gemini configured!")
 
-# --------------------------------------------
-# STEP 5: Initialize Flask App
-# --------------------------------------------
+
+# Flask App Setup
 app = Flask(__name__)
-app.secret_key = secrets.token_hex(16)  # For session management
+app.secret_key = secrets.token_hex(16)
 CORS(app, supports_credentials=True)
 
-# --------------------------------------------
-# STEP 6: Home Endpoint
-# --------------------------------------------
-@app.route('/')
-def home():
-    """Home endpoint"""
-    return jsonify({
-        "message": "🤖 Live AI Assistant API is running!",
-        "status": "online",
-        "ai_model": "Google Gemini 2.5 Flash (FREE)",
-        "features": ["Chat", "Conversation Memory", "Context-Aware"],
-        "endpoints": {
-            "/chat": "POST - Chat with memory",
-            "/clear": "POST - Clear conversation memory"
-        }
-    })
 
-# --------------------------------------------
-# STEP 7: Chat Endpoint with Memory
-# --------------------------------------------
+# Upload folder setup
+UPLOAD_FOLDER = os.path.join(os.path.dirname(__file__), 'uploads')
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+
+ALLOWED_EXTENSIONS = {'pdf', 'png', 'jpg', 'jpeg', 'gif', 'webp', 'docx', 'txt'}
+app.config['MAX_CONTENT_LENGTH'] = 10 * 1024 * 1024
+
+
+# Initialize Database on Startup
+init_db()
+
+
+
+# Helper Functions
+def allowed_file(filename):
+    return '.' in filename and \
+           filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+def get_file_extension(filename):
+    return filename.rsplit('.', 1)[1].lower()
+
+def extract_text_from_pdf(file_path):
+    print(f"📄 Reading PDF: {file_path}")
+    text = ""
+    try:
+        with open(file_path, 'rb') as file:
+            pdf_reader = PyPDF2.PdfReader(file)
+            for page_num in range(len(pdf_reader.pages)):
+                page_text = pdf_reader.pages[page_num].extract_text()
+                if page_text:
+                    text += f"\n--- Page {page_num + 1} ---\n"
+                    text += page_text
+        return text
+    except Exception as e:
+        print(f"❌ PDF error: {e}")
+        return None
+
+def extract_text_from_docx(file_path):
+    try:
+        doc = docx.Document(file_path)
+        full_text = [p.text for p in doc.paragraphs if p.text.strip()]
+        return '\n'.join(full_text)
+    except Exception as e:
+        print(f"❌ Docx error: {e}")
+        return None
+
+def extract_text_from_txt(file_path):
+    try:
+        with open(file_path, 'r', encoding='utf-8') as file:
+            return file.read()
+    except Exception as e:
+        print(f"❌ Txt error: {e}")
+        return None
+
+def analyze_image_with_gemini(file_path, user_question):
+    try:
+        image = Image.open(file_path)
+        img_byte_arr = io.BytesIO()
+        image.save(img_byte_arr, format='PNG')
+        img_byte_arr = img_byte_arr.getvalue()
+        prompt = f"Analyze this image. User question: {user_question}"
+        response = vision_model.generate_content([
+            prompt,
+            {"mime_type": "image/png", "data": img_byte_arr}
+        ])
+        return response.text
+    except Exception as e:
+        print(f"❌ Image error: {e}")
+        return None
+
+def search_web(query, num_results=5):
+    if not SERPAPI_KEY:
+        return None, []
+    try:
+        params = {
+            "q": query,
+            "api_key": SERPAPI_KEY,
+            "num": num_results,
+            "engine": "google"
+        }
+        search    = GoogleSearch(params)
+        results   = search.get_dict()
+        organic   = results.get("organic_results", [])
+        if not organic:
+            return None, []
+        search_text = ""
+        urls = []
+        for i, result in enumerate(organic[:num_results], 1):
+            search_text += f"Result {i}:\nTitle: {result.get('title','')}\n"
+            search_text += f"Description: {result.get('snippet','')}\n"
+            search_text += f"URL: {result.get('link','')}\n\n"
+            urls.append(result.get('link', ''))
+        return search_text, urls
+    except Exception as e:
+        print(f"❌ Search error: {e}")
+        return None, []
+
+
+
+# Build Conversation Context
+def build_context(session_id):
+    """
+    ★ NEW FUNCTION: Load conversation history from DATABASE
+    and format it as a string for Gemini.
+
+    Before: we read from conversation_memory dict (RAM)
+    Now:    we read from database.db (disk)
+
+    The format is the same Gemini expects:
+        "User: Hello\nAssistant: Hi!\nUser: ..."
+
+    Args:
+        session_id (str): Which conversation to load
+
+    Returns:
+        str: Formatted conversation history
+    """
+    # Load messages from database
+    messages = get_session_messages(session_id)
+
+    # Format as conversation string
+    context = ""
+    for msg in messages:
+        role = "User" if msg['role'] == 'user' else "Assistant"
+        context += f"{role}: {msg['content']}\n"
+
+    return context
+
+
+
+# Chat Endpoint
 @app.route('/chat', methods=['POST'])
 def chat():
     """
-    Chat with conversation memory
-    
-    How memory works:
-    1. Store all previous messages in conversation_memory
-    2. Send entire conversation history to Gemini
-    3. Gemini understands context from previous messages
-    4. User can have natural, flowing conversations
+    Regular chat endpoint - now saves to database.
+
+    Changes from before:
+      - No more conversation_memory dict
+      - create_session() called for new conversations
+      - save_message() called for every message
+      - build_context() loads history from database
+      - update_session_time() called after each exchange
     """
     try:
-        data = request.get_json()
-        user_message = data.get('message')
-        session_id = data.get('session_id', 'default')  # Track user sessions
-        
-        if not user_message:
-            return jsonify({"error": "No message provided"}), 400
-        
-        print(f"💬 Chat (Session: {session_id}): {user_message}")
-        
-        # Get or create conversation history for this session
-        if session_id not in conversation_memory:
-            conversation_memory[session_id] = []
-            print(f"🆕 New conversation session: {session_id}")
-        
-        # Add user message to history
-        conversation_memory[session_id].append({
-            "role": "user",
-            "content": user_message
-        })
-        
-        # Build the full conversation context for Gemini
-        # Format: "User: message\nAssistant: response\nUser: message..."
-        conversation_context = ""
-        for msg in conversation_memory[session_id]:
-            role = "User" if msg["role"] == "user" else "Assistant"
-            conversation_context += f"{role}: {msg['content']}\n"
-        
-        # Create prompt with full context
-        prompt = f"""You are a helpful AI assistant. Here is the conversation history:
+        data       = request.get_json()
+        user_msg   = data.get('message')
+        session_id = data.get('session_id', 'default')
 
-{conversation_context}
+        if not user_msg:
+            return jsonify({"error": "No message provided"}), 400
+
+        print(f"💬 Chat [{session_id[:15]}...]: {user_msg[:50]}")
+
+        # create_session() handles duplicates gracefully (try/except inside)
+        create_session(session_id, user_msg)
+
+        # Save user message to database
+        save_message(session_id, 'user', user_msg)
+
+        # Load full history from database
+        context = build_context(session_id)
+
+        # Build prompt with history
+        prompt = f"""You are a helpful AI assistant.
+
+Conversation history:
+{context}
 
 Current date: {datetime.now().strftime('%B %d, %Y')}
 
-Please respond to the user's latest message naturally, considering the entire conversation context."""
-        
+Respond naturally to the user's latest message."""
+
         # Send to Gemini
-        response = model.generate_content(prompt)
-        gemini_response = response.text
-        
-        # Add assistant response to history
-        conversation_memory[session_id].append({
-            "role": "assistant",
-            "content": gemini_response
-        })
-        
-        # Show memory stats
-        memory_count = len(conversation_memory[session_id])
-        print(f"✅ Response generated (Memory: {memory_count} messages)")
-        
+        response      = model.generate_content(prompt)
+        ai_response   = response.text
+
+        # Save AI response to database
+        save_message(session_id, 'assistant', ai_response)
+
+        # Update session's last-active timestamp
+        update_session_time(session_id)
+
+        msg_count = get_message_count(session_id)
+        print(f"✅ Response saved (total messages: {msg_count})")
+
         return jsonify({
-            "success": True,
-            "response": gemini_response,
-            "model": "gemini-2.5-flash",
-            "memory_count": memory_count,
-            "session_id": session_id
+            "success"      : True,
+            "response"     : ai_response,
+            "memory_count" : msg_count,
+            "session_id"   : session_id,
+            "search_used"  : False
         })
-    
+
     except Exception as e:
         print(f"❌ Error: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
 
-# --------------------------------------------
-# STEP 8: Search Endpoint (Simplified)
-# --------------------------------------------
+
+
+# Search Endpoint
 @app.route('/search', methods=['POST'])
-def search():
+def chat_with_search():
     """
-    Search endpoint - for now, just uses Gemini with date context
-    Web search can be added later when we find a working API
+    Web search chat - also saves to database now.
+    Same database logic as /chat above.
     """
     try:
-        data = request.get_json()
-        user_message = data.get('message')
+        data       = request.get_json()
+        user_msg   = data.get('message')
         session_id = data.get('session_id', 'default')
-        
-        if not user_message:
+
+        if not user_msg:
             return jsonify({"error": "No message provided"}), 400
-        
-        print(f"🔍 Search (Session: {session_id}): {user_message}")
-        
-        # Get conversation history
-        if session_id not in conversation_memory:
-            conversation_memory[session_id] = []
-        
-        # Add to history
-        conversation_memory[session_id].append({
-            "role": "user",
-            "content": user_message
-        })
-        
-        # Build context
-        conversation_context = ""
-        for msg in conversation_memory[session_id]:
-            role = "User" if msg["role"] == "user" else "Assistant"
-            conversation_context += f"{role}: {msg['content']}\n"
-        
-        # Enhanced prompt with current date
-        prompt = f"""You are a helpful AI assistant. Here is the conversation history:
 
-{conversation_context}
+        print(f"🔍 Search [{session_id[:15]}...]: {user_msg[:50]}")
 
-Current date: {datetime.now().strftime('%B %d, %Y, %A')}
+        create_session(session_id, user_msg)
+        save_message(session_id, 'user', user_msg)
 
-Please respond to the user's latest message. If the question requires current/recent information that you don't have, explain that you don't have real-time data but provide the best answer you can based on your knowledge."""
-        
-        response = model.generate_content(prompt)
-        gemini_response = response.text
-        
-        # Add to history
-        conversation_memory[session_id].append({
-            "role": "assistant",
-            "content": gemini_response
-        })
-        
-        memory_count = len(conversation_memory[session_id])
-        print(f"✅ Response generated (Memory: {memory_count} messages)")
-        
+        search_results, urls = search_web(user_msg)
+        context = build_context(session_id)
+
+        if search_results:
+            prompt = f"""You are a helpful AI assistant with web search access.
+
+Conversation history:
+{context}
+
+Current date: {datetime.now().strftime('%B %d, %Y')}
+
+Google search results for "{user_msg}":
+{search_results}
+
+Answer using the search results. Cite sources when relevant."""
+        else:
+            prompt = f"""You are a helpful AI assistant.
+
+Conversation history:
+{context}
+
+Current date: {datetime.now().strftime('%B %d, %Y')}
+
+Answer: {user_msg}"""
+
+        response    = model.generate_content(prompt)
+        ai_response = response.text
+
+        save_message(session_id, 'assistant', ai_response)
+        update_session_time(session_id)
+
         return jsonify({
-            "success": True,
-            "response": gemini_response,
-            "model": "gemini-2.5-flash",
-            "memory_count": memory_count,
-            "session_id": session_id,
-            "note": "Web search not available - using AI knowledge with date context"
+            "success"     : True,
+            "response"    : ai_response,
+            "memory_count": get_message_count(session_id),
+            "session_id"  : session_id,
+            "search_used" : bool(search_results),
+            "sources"     : urls
         })
-    
+
     except Exception as e:
         print(f"❌ Error: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
 
-# --------------------------------------------
-# STEP 9: Clear Memory Endpoint
-# --------------------------------------------
+
+
+# File Upload Endpoint
+@app.route('/upload', methods=['POST'])
+def upload_file():
+    """
+    File upload - also saves to database now.
+    """
+    try:
+        if 'file' not in request.files:
+            return jsonify({"success": False, "error": "No file uploaded"}), 400
+
+        file          = request.files['file']
+        user_question = request.form.get('message', 'Please analyze this file')
+        session_id    = request.form.get('session_id', 'default')
+
+        if file.filename == '' or not allowed_file(file.filename):
+            return jsonify({"success": False, "error": "Invalid file"}), 400
+
+        timestamp     = datetime.now().strftime('%Y%m%d_%H%M%S')
+        extension     = get_file_extension(file.filename)
+        safe_filename = f"{timestamp}_{file.filename}"
+        file_path     = os.path.join(UPLOAD_FOLDER, safe_filename)
+        file.save(file_path)
+
+        ai_response = None
+        file_type   = None
+
+        if extension == 'pdf':
+            file_type      = "PDF Document"
+            extracted_text = extract_text_from_pdf(file_path)
+            if extracted_text:
+                prompt      = f"PDF Content:\n{extracted_text[:10000]}\n\nUser question: {user_question}\n\nSummarize and answer."
+                ai_response = model.generate_content(prompt).text
+
+        elif extension in ['png', 'jpg', 'jpeg', 'gif', 'webp']:
+            file_type   = "Image"
+            ai_response = analyze_image_with_gemini(file_path, user_question)
+
+        elif extension == 'docx':
+            file_type      = "Word Document"
+            extracted_text = extract_text_from_docx(file_path)
+            if extracted_text:
+                prompt      = f"Document:\n{extracted_text[:10000]}\n\nUser question: {user_question}"
+                ai_response = model.generate_content(prompt).text
+
+        elif extension == 'txt':
+            file_type      = "Text File"
+            extracted_text = extract_text_from_txt(file_path)
+            if extracted_text:
+                prompt      = f"File content:\n{extracted_text[:10000]}\n\nUser question: {user_question}"
+                ai_response = model.generate_content(prompt).text
+
+        try:
+            os.remove(file_path)
+        except:
+            pass
+
+        if not ai_response:
+            ai_response = "Sorry, I couldn't process this file."
+
+        # ★ NEW: Save file interaction to database
+        create_session(session_id, user_question)
+        save_message(session_id, 'user', f"[Uploaded {file_type}: {file.filename}] {user_question}")
+        save_message(session_id, 'assistant', ai_response)
+        update_session_time(session_id)
+
+        return jsonify({
+            "success"     : True,
+            "response"    : ai_response,
+            "file_name"   : file.filename,
+            "file_type"   : file_type,
+            "memory_count": get_message_count(session_id),
+            "session_id"  : session_id
+        })
+
+    except Exception as e:
+        print(f"❌ Upload error: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+
+# Chat History Endpoints
+@app.route('/history', methods=['GET'])
+def get_history():
+    """
+    GET /history
+    Returns all conversations for the dashboard.
+
+    Returns:
+        JSON list of all sessions with message counts
+        Example:
+        [
+            {
+                "session_id": "sess_abc",
+                "title": "What is Python?",
+                "created_at": "2026-03-18 14:00:00",
+                "updated_at": "2026-03-18 14:05:00",
+                "message_count": 6
+            },
+            ...
+        ]
+    """
+    try:
+        sessions = get_all_sessions()
+
+        # Add message count to each session
+        for session in sessions:
+            session['message_count'] = get_message_count(session['session_id'])
+
+        print(f"📋 Returning {len(sessions)} sessions")
+        return jsonify({"success": True, "sessions": sessions})
+
+    except Exception as e:
+        print(f"❌ History error: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@app.route('/history/<session_id>', methods=['GET'])
+def get_session_history(session_id):
+    """
+    GET /history/<session_id>
+    Returns all messages for one specific session.
+
+    <session_id> in the URL is a variable - Flask
+    captures it and passes it to the function.
+
+    Example URL: /history/sess_abc123
+    Flask calls: get_session_history('sess_abc123')
+
+    Returns:
+        JSON list of messages
+        Example:
+        {
+            "success": true,
+            "messages": [
+                {"role": "user", "content": "Hello", "timestamp": "..."},
+                {"role": "assistant", "content": "Hi!", "timestamp": "..."}
+            ]
+        }
+    """
+    try:
+        messages = get_session_messages(session_id)
+        print(f"📋 Returning {len(messages)} messages for {session_id[:15]}...")
+        return jsonify({"success": True, "messages": messages})
+
+    except Exception as e:
+        print(f"❌ Session history error: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@app.route('/history/<session_id>', methods=['DELETE'])
+def delete_session_endpoint(session_id):
+    """
+    DELETE /history/<session_id>
+    Deletes a session and all its messages.
+
+    Same URL as GET above but different HTTP method (DELETE).
+    Flask routes to a different function based on method.
+
+    This is called when user clicks delete in the dashboard.
+    """
+    try:
+        delete_session(session_id)
+        return jsonify({"success": True, "message": "Session deleted"})
+
+    except Exception as e:
+        print(f"❌ Delete error: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@app.route('/history/search', methods=['GET'])
+def search_history():
+    """
+    GET /history/search?q=python
+    Search through all messages.
+
+    'q' is a query parameter in the URL.
+    request.args.get('q') reads it.
+
+    Example: /history/search?q=python
+    Returns all sessions containing the word 'python'
+    """
+    try:
+        query = request.args.get('q', '')
+
+        if not query:
+            return jsonify({"success": False, "error": "No search query"}), 400
+
+        results = search_messages(query)
+        print(f"🔍 Search '{query}': {len(results)} results")
+        return jsonify({"success": True, "results": results, "query": query})
+
+    except Exception as e:
+        print(f"❌ Search error: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
 @app.route('/clear', methods=['POST'])
 def clear_memory():
-    """Clear conversation memory for a session"""
+    """
+    Clear conversation - now deletes from database too.
+    """
     try:
-        data = request.get_json()
+        data       = request.get_json()
         session_id = data.get('session_id', 'default')
-        
-        if session_id in conversation_memory:
-            message_count = len(conversation_memory[session_id])
-            del conversation_memory[session_id]
-            print(f"🗑️ Cleared {message_count} messages from session: {session_id}")
-            return jsonify({
-                "success": True,
-                "message": f"Cleared {message_count} messages from memory"
-            })
-        else:
-            return jsonify({
-                "success": True,
-                "message": "No memory to clear"
-            })
-    
+        delete_session(session_id)
+        return jsonify({"success": True, "message": "Session cleared"})
+
     except Exception as e:
-        print(f"❌ Error: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
 
-# --------------------------------------------
-# STEP 10: Run Server
-# --------------------------------------------
+
+@app.route('/')
+def home():
+    return jsonify({
+        "message" : "🤖 Live AI Assistant - with Database",
+        "status"  : "online",
+        "features": ["Chat", "Web Search", "File Upload", "Persistent History"],
+        "endpoints": {
+            "POST /chat"                    : "Regular chat",
+            "POST /search"                  : "Chat with web search",
+            "POST /upload"                  : "Upload file",
+            "GET  /history"                 : "All conversations",
+            "GET  /history/<session_id>"    : "One conversation",
+            "DELETE /history/<session_id>"  : "Delete conversation",
+            "GET  /history/search?q=term"   : "Search conversations"
+        }
+    })
+
+
 if __name__ == '__main__':
-    print("=" * 50)
-    print("🚀 Starting Live AI Assistant Server...")
-    print("=" * 50)
-    print("🤖 AI: Google Gemini 2.5 Flash")
-    print("🧠 Feature: Conversation Memory")
-    print("💰 Cost: 100% FREE!")
-    print("=" * 50)
-    print("📍 http://localhost:5000")
-    print("=" * 50)
-    print("💡 The AI remembers your conversation!")
-    print("   Ask follow-up questions naturally.")
-    print("=" * 50)
-    print("Press CTRL+C to stop")
-    print("=" * 50)
-    
     app.run(debug=True, host='0.0.0.0', port=5000)
